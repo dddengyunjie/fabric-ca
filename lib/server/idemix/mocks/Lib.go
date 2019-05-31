@@ -3,7 +3,7 @@ package mocks
 
 import FP256BN "github.com/hyperledger/fabric-amcl/amcl/FP256BN"
 import amcl "github.com/hyperledger/fabric-amcl/amcl"
-import ecdsa "crypto/ecdsa"
+import sm2 "github.com/tjfoc/gmsm/sm2"
 import idemix "github.com/hyperledger/fabric/idemix"
 import mock "github.com/stretchr/testify/mock"
 
@@ -13,11 +13,11 @@ type Lib struct {
 }
 
 // CreateCRI provides a mock function with given fields: key, unrevokedHandles, epoch, alg, rng
-func (_m *Lib) CreateCRI(key *ecdsa.PrivateKey, unrevokedHandles []*FP256BN.BIG, epoch int, alg idemix.RevocationAlgorithm, rng *amcl.RAND) (*idemix.CredentialRevocationInformation, error) {
+func (_m *Lib) CreateCRI(key *sm2.PrivateKey, unrevokedHandles []*FP256BN.BIG, epoch int, alg idemix.RevocationAlgorithm, rng *amcl.RAND) (*idemix.CredentialRevocationInformation, error) {
 	ret := _m.Called(key, unrevokedHandles, epoch, alg, rng)
 
 	var r0 *idemix.CredentialRevocationInformation
-	if rf, ok := ret.Get(0).(func(*ecdsa.PrivateKey, []*FP256BN.BIG, int, idemix.RevocationAlgorithm, *amcl.RAND) *idemix.CredentialRevocationInformation); ok {
+	if rf, ok := ret.Get(0).(func(*sm2.PrivateKey, []*FP256BN.BIG, int, idemix.RevocationAlgorithm, *amcl.RAND) *idemix.CredentialRevocationInformation); ok {
 		r0 = rf(key, unrevokedHandles, epoch, alg, rng)
 	} else {
 		if ret.Get(0) != nil {
@@ -26,7 +26,7 @@ func (_m *Lib) CreateCRI(key *ecdsa.PrivateKey, unrevokedHandles []*FP256BN.BIG,
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(*ecdsa.PrivateKey, []*FP256BN.BIG, int, idemix.RevocationAlgorithm, *amcl.RAND) error); ok {
+	if rf, ok := ret.Get(1).(func(*sm2.PrivateKey, []*FP256BN.BIG, int, idemix.RevocationAlgorithm, *amcl.RAND) error); ok {
 		r1 = rf(key, unrevokedHandles, epoch, alg, rng)
 	} else {
 		r1 = ret.Error(1)
@@ -36,15 +36,15 @@ func (_m *Lib) CreateCRI(key *ecdsa.PrivateKey, unrevokedHandles []*FP256BN.BIG,
 }
 
 // GenerateLongTermRevocationKey provides a mock function with given fields:
-func (_m *Lib) GenerateLongTermRevocationKey() (*ecdsa.PrivateKey, error) {
+func (_m *Lib) GenerateLongTermRevocationKey() (*sm2.PrivateKey, error) {
 	ret := _m.Called()
 
-	var r0 *ecdsa.PrivateKey
-	if rf, ok := ret.Get(0).(func() *ecdsa.PrivateKey); ok {
+	var r0 *sm2.PrivateKey
+	if rf, ok := ret.Get(0).(func() *sm2.PrivateKey); ok {
 		r0 = rf()
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ecdsa.PrivateKey)
+			r0 = ret.Get(0).(*sm2.PrivateKey)
 		}
 	}
 

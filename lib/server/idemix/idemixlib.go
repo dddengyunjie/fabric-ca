@@ -7,20 +7,19 @@ SPDX-License-Identifier: Apache-2.0
 package idemix
 
 import (
-	"crypto/ecdsa"
-
 	"github.com/hyperledger/fabric-amcl/amcl"
 	fp256bn "github.com/hyperledger/fabric-amcl/amcl/FP256BN"
 	"github.com/hyperledger/fabric/idemix"
 	"github.com/pkg/errors"
+	"github.com/tjfoc/gmsm/sm2"
 )
 
 // Lib represents idemix library
 type Lib interface {
 	NewIssuerKey(AttributeNames []string, rng *amcl.RAND) (ik *idemix.IssuerKey, err error)
 	NewCredential(key *idemix.IssuerKey, m *idemix.CredRequest, attrs []*fp256bn.BIG, rng *amcl.RAND) (cred *idemix.Credential, err error)
-	CreateCRI(key *ecdsa.PrivateKey, unrevokedHandles []*fp256bn.BIG, epoch int, alg idemix.RevocationAlgorithm, rng *amcl.RAND) (cri *idemix.CredentialRevocationInformation, err error)
-	GenerateLongTermRevocationKey() (pk *ecdsa.PrivateKey, err error)
+	CreateCRI(key *sm2.PrivateKey, unrevokedHandles []*fp256bn.BIG, epoch int, alg idemix.RevocationAlgorithm, rng *amcl.RAND) (cri *idemix.CredentialRevocationInformation, err error)
+	GenerateLongTermRevocationKey() (pk *sm2.PrivateKey, err error)
 	GetRand() (rand *amcl.RAND, err error)
 	RandModOrder(rng *amcl.RAND) (big *fp256bn.BIG, err error)
 }
@@ -69,7 +68,7 @@ func (i *libImpl) NewIssuerKey(AttributeNames []string, rng *amcl.RAND) (ik *ide
 	}()
 	return idemix.NewIssuerKey(AttributeNames, rng)
 }
-func (i *libImpl) CreateCRI(key *ecdsa.PrivateKey, unrevokedHandles []*fp256bn.BIG, epoch int, alg idemix.RevocationAlgorithm, rng *amcl.RAND) (cri *idemix.CredentialRevocationInformation, err error) {
+func (i *libImpl) CreateCRI(key *sm2.PrivateKey, unrevokedHandles []*fp256bn.BIG, epoch int, alg idemix.RevocationAlgorithm, rng *amcl.RAND) (cri *idemix.CredentialRevocationInformation, err error) {
 	defer func() {
 		r := recover()
 		if r != nil {
@@ -78,7 +77,7 @@ func (i *libImpl) CreateCRI(key *ecdsa.PrivateKey, unrevokedHandles []*fp256bn.B
 	}()
 	return idemix.CreateCRI(key, unrevokedHandles, epoch, alg, rng)
 }
-func (i *libImpl) GenerateLongTermRevocationKey() (pk *ecdsa.PrivateKey, err error) {
+func (i *libImpl) GenerateLongTermRevocationKey() (pk *sm2.PrivateKey, err error) {
 	defer func() {
 		r := recover()
 		if r != nil {

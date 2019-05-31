@@ -189,8 +189,8 @@ caname:
 # crypto implementation library to use
 #############################################################################
 bccsp:
-    default: SW
-    sw:
+    default: GM
+    gmca:
         hash: SHA2
         security: 256
         filekeystore:

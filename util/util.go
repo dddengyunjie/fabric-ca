@@ -45,6 +45,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/tjfoc/gmsm/sm2"
 	"golang.org/x/crypto/ocsp"
 )
 
@@ -280,7 +281,10 @@ func VerifyToken(csp bccsp.BCCSP, token string, method, uri string, body []byte,
 	b64uri := B64Encode([]byte(uri))
 	sigString := method + "." + b64uri + "." + b64Body + "." + b64Cert
 
-	pk2, err := csp.KeyImport(x509Cert, &bccsp.X509PublicKeyImportOpts{Temporary: true})
+	log.Infof("xxx before csp .KeyImport csp : %T b64Body %s", csp, sigString)
+	sm2cert := ParseX509Certificate2Sm2(x509Cert)
+	pk2, err := csp.KeyImport(sm2cert, &bccsp.X509PublicKeyImportOpts{Temporary: true})
+	log.Infof("xxx end csp .KeyImport pk2 : %T", pk2)
 	if err != nil {
 		return nil, errors.WithMessage(err, "Public Key import into BCCSP failed with error")
 	}
@@ -294,7 +298,7 @@ func VerifyToken(csp bccsp.BCCSP, token string, method, uri string, body []byte,
 	if digestError != nil {
 		return nil, errors.WithMessage(digestError, "Message digest failed")
 	}
-
+	log.Debugf("pk2 %T \n sig %T\n digest %s\n", pk2, sig, B64Encode(digest))
 	valid, validErr := csp.Verify(pk2, sig, digest, nil)
 	if compMode1_3 && !valid {
 		log.Debugf("Failed to verify token based on new authentication header requirements: %s", err)
@@ -371,7 +375,7 @@ func GetRSAPrivateKey(raw []byte) (*rsa.PrivateKey, error) {
 	if err == nil {
 		return RSAprivKey, nil
 	}
-	key, err2 := x509.ParsePKCS8PrivateKey(decoded.Bytes)
+	key, err2 := x509.ParsePKCS8PrivateKey(raw)
 	if err2 == nil {
 		switch key.(type) {
 		case *ecdsa.PrivateKey:
@@ -383,6 +387,19 @@ func GetRSAPrivateKey(raw []byte) (*rsa.PrivateKey, error) {
 		}
 	}
 	return nil, errors.Wrap(err, "Failed parsing RSA private key")
+}
+
+//GetSM2PrivateKey get *sm2.PrivateKey from key pem
+func GetSM2PrivateKey(raw []byte) (*sm2.PrivateKey, error) {
+	decoded, _ := pem.Decode(raw)
+	if decoded == nil {
+		return nil, errors.New("Failed to decode the PEM-encoded RSA key")
+	}
+	if key, err := sm2.ParsePKCS8UnecryptedPrivateKey(decoded.Bytes); err == nil {
+		return key, nil
+	} else {
+		return nil, fmt.Errorf("tls: failed to parse private key %v", err)
+	}
 }
 
 // B64Encode base64 encodes bytes
@@ -505,7 +522,17 @@ func GetX509CertificateFromPEM(cert []byte) (*x509.Certificate, error) {
 	if block == nil {
 		return nil, errors.New("Failed to PEM decode certificate")
 	}
-	x509Cert, err := x509.ParseCertificate(block.Bytes)
+	var x509Cert *x509.Certificate
+	var err error
+	if IsGMConfig() {
+		log.Debugf("cpcpcpcpcpcpcpcpcpcpcpcpcpcpcppcpc")
+		sm2x509Cert, err := sm2.ParseCertificate(block.Bytes)
+		if err == nil {
+			x509Cert = ParseSm2Certificate2X509(sm2x509Cert)
+		}
+	} else {
+		x509Cert, err = x509.ParseCertificate(block.Bytes)
+	}
 	if err != nil {
 		return nil, errors.Wrap(err, "Error parsing certificate")
 	}
@@ -523,11 +550,20 @@ func GetX509CertificatesFromPEM(pemBytes []byte) ([]*x509.Certificate, error) {
 			break
 		}
 
-		cert, err := x509.ParseCertificate(block.Bytes)
+		var x509Cert *x509.Certificate
+		var err error
+		if IsGMConfig() {
+			sm2x509Cert, err := sm2.ParseCertificate(block.Bytes)
+			if err == nil {
+				x509Cert = ParseSm2Certificate2X509(sm2x509Cert)
+			}
+		} else {
+			x509Cert, err = x509.ParseCertificate(block.Bytes)
+		}
 		if err != nil {
 			return nil, errors.Wrap(err, "Error parsing certificate")
 		}
-		certs = append(certs, cert)
+		certs = append(certs, x509Cert)
 	}
 	return certs, nil
 }
@@ -862,4 +898,158 @@ func ErrorContains(t *testing.T, err error, contains, msg string, args ...interf
 	if assert.Error(t, err, msg) {
 		assert.Contains(t, err.Error(), contains)
 	}
+}
+
+//sm2 证书转换 x509 证书
+func ParseSm2Certificate2X509(sm2Cert *sm2.Certificate) *x509.Certificate {
+	x509cert := &x509.Certificate{
+		Raw:                     sm2Cert.Raw,
+		RawTBSCertificate:       sm2Cert.RawTBSCertificate,
+		RawSubjectPublicKeyInfo: sm2Cert.RawSubjectPublicKeyInfo,
+		RawSubject:              sm2Cert.RawSubject,
+		RawIssuer:               sm2Cert.RawIssuer,
+
+		Signature:          sm2Cert.Signature,
+		SignatureAlgorithm: x509.SignatureAlgorithm(sm2Cert.SignatureAlgorithm),
+
+		PublicKeyAlgorithm: x509.PublicKeyAlgorithm(sm2Cert.PublicKeyAlgorithm),
+		PublicKey:          sm2Cert.PublicKey,
+
+		Version:      sm2Cert.Version,
+		SerialNumber: sm2Cert.SerialNumber,
+		Issuer:       sm2Cert.Issuer,
+		Subject:      sm2Cert.Subject,
+		NotBefore:    sm2Cert.NotBefore,
+		NotAfter:     sm2Cert.NotAfter,
+		KeyUsage:     x509.KeyUsage(sm2Cert.KeyUsage),
+
+		Extensions: sm2Cert.Extensions,
+
+		ExtraExtensions: sm2Cert.ExtraExtensions,
+
+		UnhandledCriticalExtensions: sm2Cert.UnhandledCriticalExtensions,
+
+		//ExtKeyUsage:	[]x509.ExtKeyUsage(sm2Cert.ExtKeyUsage) ,
+		UnknownExtKeyUsage: sm2Cert.UnknownExtKeyUsage,
+
+		BasicConstraintsValid: sm2Cert.BasicConstraintsValid,
+		IsCA:                  sm2Cert.IsCA,
+		MaxPathLen:            sm2Cert.MaxPathLen,
+		// MaxPathLenZero indicates that BasicConstraintsValid==true and
+		// MaxPathLen==0 should be interpreted as an actual maximum path length
+		// of zero. Otherwise, that combination is interpreted as MaxPathLen
+		// not being set.
+		MaxPathLenZero: sm2Cert.MaxPathLenZero,
+
+		SubjectKeyId:   sm2Cert.SubjectKeyId,
+		AuthorityKeyId: sm2Cert.AuthorityKeyId,
+
+		// RFC 5280, 4.2.2.1 (Authority Information Access)
+		OCSPServer:            sm2Cert.OCSPServer,
+		IssuingCertificateURL: sm2Cert.IssuingCertificateURL,
+
+		// Subject Alternate Name values
+		DNSNames:       sm2Cert.DNSNames,
+		EmailAddresses: sm2Cert.EmailAddresses,
+		IPAddresses:    sm2Cert.IPAddresses,
+
+		// Name constraints
+		PermittedDNSDomainsCritical: sm2Cert.PermittedDNSDomainsCritical,
+		PermittedDNSDomains:         sm2Cert.PermittedDNSDomains,
+
+		// CRL Distribution Points
+		CRLDistributionPoints: sm2Cert.CRLDistributionPoints,
+
+		PolicyIdentifiers: sm2Cert.PolicyIdentifiers,
+	}
+	for _, val := range sm2Cert.ExtKeyUsage {
+		x509cert.ExtKeyUsage = append(x509cert.ExtKeyUsage, x509.ExtKeyUsage(val))
+	}
+
+	return x509cert
+}
+
+// X509证书格式转换为 SM2证书格式
+func ParseX509Certificate2Sm2(x509Cert *x509.Certificate) *sm2.Certificate {
+	sm2cert := &sm2.Certificate{
+		Raw:                     x509Cert.Raw,
+		RawTBSCertificate:       x509Cert.RawTBSCertificate,
+		RawSubjectPublicKeyInfo: x509Cert.RawSubjectPublicKeyInfo,
+		RawSubject:              x509Cert.RawSubject,
+		RawIssuer:               x509Cert.RawIssuer,
+
+		Signature:          x509Cert.Signature,
+		SignatureAlgorithm: sm2.SignatureAlgorithm(x509Cert.SignatureAlgorithm),
+
+		PublicKeyAlgorithm: sm2.PublicKeyAlgorithm(x509Cert.PublicKeyAlgorithm),
+		PublicKey:          x509Cert.PublicKey,
+
+		Version:      x509Cert.Version,
+		SerialNumber: x509Cert.SerialNumber,
+		Issuer:       x509Cert.Issuer,
+		Subject:      x509Cert.Subject,
+		NotBefore:    x509Cert.NotBefore,
+		NotAfter:     x509Cert.NotAfter,
+		KeyUsage:     sm2.KeyUsage(x509Cert.KeyUsage),
+
+		Extensions: x509Cert.Extensions,
+
+		ExtraExtensions: x509Cert.ExtraExtensions,
+
+		UnhandledCriticalExtensions: x509Cert.UnhandledCriticalExtensions,
+
+		//ExtKeyUsage:	[]x509.ExtKeyUsage(x509Cert.ExtKeyUsage) ,
+		UnknownExtKeyUsage: x509Cert.UnknownExtKeyUsage,
+
+		BasicConstraintsValid: x509Cert.BasicConstraintsValid,
+		IsCA:                  x509Cert.IsCA,
+		MaxPathLen:            x509Cert.MaxPathLen,
+		// MaxPathLenZero indicates that BasicConstraintsValid==true and
+		// MaxPathLen==0 should be interpreted as an actual maximum path length
+		// of zero. Otherwise, that combination is interpreted as MaxPathLen
+		// not being set.
+		MaxPathLenZero: x509Cert.MaxPathLenZero,
+
+		SubjectKeyId:   x509Cert.SubjectKeyId,
+		AuthorityKeyId: x509Cert.AuthorityKeyId,
+
+		// RFC 5280, 4.2.2.1 (Authority Information Access)
+		OCSPServer:            x509Cert.OCSPServer,
+		IssuingCertificateURL: x509Cert.IssuingCertificateURL,
+
+		// Subject Alternate Name values
+		DNSNames:       x509Cert.DNSNames,
+		EmailAddresses: x509Cert.EmailAddresses,
+		IPAddresses:    x509Cert.IPAddresses,
+
+		// Name constraints
+		PermittedDNSDomainsCritical: x509Cert.PermittedDNSDomainsCritical,
+		PermittedDNSDomains:         x509Cert.PermittedDNSDomains,
+
+		// CRL Distribution Points
+		CRLDistributionPoints: x509Cert.CRLDistributionPoints,
+
+		PolicyIdentifiers: x509Cert.PolicyIdentifiers,
+	}
+	for _, val := range x509Cert.ExtKeyUsage {
+		sm2cert.ExtKeyUsage = append(sm2cert.ExtKeyUsage, sm2.ExtKeyUsage(val))
+	}
+
+	return sm2cert
+}
+
+var providerName string
+
+func IsGMConfig() bool {
+	if providerName == "" {
+		return false
+	}
+	if strings.ToUpper(providerName) == "GM" {
+		return true
+	}
+	return false
+}
+
+func SetProviderName(name string) {
+	providerName = name
 }
