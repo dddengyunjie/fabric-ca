@@ -19,9 +19,9 @@ import (
 	"github.com/cloudflare/cfssl/certdb"
 	"github.com/cloudflare/cfssl/csr"
 	"github.com/cloudflare/cfssl/log"
-	"github.com/tjfoc/gmsm/sm2"
 	"github.com/hyperledger/fabric/bccsp"
 	"github.com/hyperledger/fabric/bccsp/gm"
+	"github.com/tjfoc/gmsm/sm2"
 
 	"github.com/cloudflare/cfssl/signer"
 	"github.com/hyperledger/fabric-ca/util"
@@ -63,7 +63,7 @@ func signCert(req signer.SignRequest, ca *CA) (cert []byte, err error) {
 
 		return nil, err
 	}
-	log.Infof("^^^^^^^^^^^^^^^^^^^^^^^x509cert = %v",x509cert)
+	log.Infof("^^^^^^^^^^^^^^^^^^^^^^^x509cert = %v", x509cert)
 	rootca := ParseX509Certificate2Sm2(x509cert)
 
 	cert, err = gm.CreateCertificateToMem(template, rootca, rootkey)
@@ -104,6 +104,7 @@ func createGmSm2Cert(key bccsp.Key, req *csr.CertificateRequest, priv crypto.Sig
 	if err != nil {
 		log.Infof("xxxxxxxxxxxxx create csr error:%s", err)
 	}
+	log.Infof("xxxxxxxxxxxxx create gm csr completed!")
 	block, _ := pem.Decode(csrPEM)
 	if block == nil {
 		return nil, fmt.Errorf("sm2 csr DecodeFailed")
@@ -114,11 +115,12 @@ func createGmSm2Cert(key bccsp.Key, req *csr.CertificateRequest, priv crypto.Sig
 	}
 	sm2Template, err := parseCertificateRequest(block.Bytes)
 	if err != nil {
+		log.Infof("parseCertificateRequest return err:%s", err)
 		return nil, err
 	}
 	log.Infof("key is %T   ---%T", sm2Template.PublicKey, sm2Template)
 	cert, err = gm.CreateCertificateToMem(sm2Template, sm2Template, key)
-	return
+	return cert, err
 }
 
 //证书请求转换成证书  参数为  block .Bytes
@@ -186,7 +188,7 @@ func parseCertificateRequest(csrBytes []byte) (template *sm2.Certificate, err er
 
 //cloudflare 证书请求 转成 国密证书请求
 func generate(priv crypto.Signer, req *csr.CertificateRequest, key bccsp.Key) (csr []byte, err error) {
-	log.Info("xx entry generate")
+	log.Info("xx entry gm generate")
 	sigAlgo := signerAlgo(priv)
 	if sigAlgo == sm2.UnknownSignatureAlgorithm {
 		return nil, fmt.Errorf("Private key is unavailable")
@@ -218,7 +220,7 @@ func generate(priv crypto.Signer, req *csr.CertificateRequest, key bccsp.Key) (c
 	}
 	csr, err = gm.CreateSm2CertificateRequestToMem(&tpl, key)
 	log.Info("xx exit generate")
-	return
+	return csr, err
 }
 
 func signerAlgo(priv crypto.Signer) sm2.SignatureAlgorithm {
@@ -304,8 +306,8 @@ func ParseX509Certificate2Sm2(x509Cert *x509.Certificate) *sm2.Certificate {
 		//ExtKeyUsage:	[]x509.ExtKeyUsage(x509Cert.ExtKeyUsage) ,
 		UnknownExtKeyUsage:    x509Cert.UnknownExtKeyUsage,
 		BasicConstraintsValid: x509Cert.BasicConstraintsValid,
-		IsCA:       x509Cert.IsCA,
-		MaxPathLen: x509Cert.MaxPathLen,
+		IsCA:                  x509Cert.IsCA,
+		MaxPathLen:            x509Cert.MaxPathLen,
 		// MaxPathLenZero indicates that BasicConstraintsValid==true and
 		// MaxPathLen==0 should be interpreted as an actual maximum path length
 		// of zero. Otherwise, that combination is interpreted as MaxPathLen

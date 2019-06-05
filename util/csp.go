@@ -252,7 +252,7 @@ func GetSignerFromCertFile(certFile string, csp bccsp.BCCSP) (bccsp.Key, crypto.
 	cert, err := helpers.ParseCertificatePEM(certBytes)
 	//var newCert = &x509.Certificate{}
 	if err != nil || cert == nil {
-		log.Infof("+++++++++++++ error = %s", err.Error())
+		log.Infof("+++++++++++++ error = %s,Mabey it is a gm cert!", err.Error())
 		sm2Cert, err := sm2.ReadCertificateFromPem(certFile)
 		if err != nil {
 			return nil, nil, nil, err
