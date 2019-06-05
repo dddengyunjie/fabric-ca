@@ -341,7 +341,7 @@ signing:
 csr:
    cn: <<<COMMONNAME>>>
    keyrequest:
-     algo: gmsm
+     algo: gmsm2
      size: 256
    names:
       - C: US

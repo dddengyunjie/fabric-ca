@@ -137,7 +137,7 @@ tls:
 csr:
   cn: <<<ENROLLMENT_ID>>>
   keyrequest:
-    algo: ecdsa
+    algo: gmsm2
     size: 256
   serialnumber:
   names:
