@@ -180,6 +180,7 @@ func Unmarshal(from []byte, to interface{}, what string) error {
 // @param uri URI of the request
 // @param body The body of an HTTP request
 func CreateToken(csp bccsp.BCCSP, cert []byte, key bccsp.Key, method, uri string, body []byte) (string, error) {
+	log.Debug("enter util.CreateToken")
 	x509Cert, err := GetX509CertificateFromPEM(cert)
 	if err != nil {
 		return "", err
@@ -198,10 +199,19 @@ func CreateToken(csp bccsp.BCCSP, cert []byte, key bccsp.Key, method, uri string
 			}
 	*/
 	case *ecdsa.PublicKey:
+		log.Debug("publicKey.(type)=*ecdsa.PublicKey")
 		token, err = GenECDSAToken(csp, cert, key, method, uri, body)
 		if err != nil {
 			return "", err
 		}
+	case *sm2.PublicKey:
+		log.Debug("publicKey.(type)=*sm2.PublicKey")
+		token, err = GenECDSAToken(csp, cert, key, method, uri, body)
+		if err != nil {
+			return "", err
+		}
+	default:
+		log.Debugf("publicKey=%T", publicKey)
 	}
 	return token, nil
 }
@@ -525,10 +535,11 @@ func GetX509CertificateFromPEM(cert []byte) (*x509.Certificate, error) {
 	var x509Cert *x509.Certificate
 	var err error
 	if IsGMConfig() {
-		log.Debugf("cpcpcpcpcpcpcpcpcpcpcpcpcpcpcppcpc")
+		log.Debugf("IsGMConfig = true")
 		sm2x509Cert, err := sm2.ParseCertificate(block.Bytes)
 		if err == nil {
 			x509Cert = ParseSm2Certificate2X509(sm2x509Cert)
+			log.Debugf("after parse,x509Cert=%T,x509Cert.PublicKey=%T", x509Cert, x509Cert.PublicKey)
 		}
 	} else {
 		x509Cert, err = x509.ParseCertificate(block.Bytes)
